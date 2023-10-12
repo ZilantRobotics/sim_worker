@@ -1,0 +1,5 @@
+[
+  {"start_sim" : {"mode": "hitl_innosim"}},
+  {"stop_sim":  {}},
+  {"load_scene": {"scene_name": "hitl_innosim"}}
+]

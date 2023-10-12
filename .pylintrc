@@ -9,4 +9,6 @@ disable=
     E0402, # relative-beyond-top-level
     E0401, # import-error
     C0103, # invalid-name
-    W1203  # logging-fstring-interpolation
+    W1203, # logging-fstring-interpolation
+    R0902, #Too many instance attributes
+    R0913, #Too many arguments
