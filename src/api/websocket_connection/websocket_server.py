@@ -8,7 +8,7 @@ from typing import Dict, cast, Callable, Optional, Awaitable
 import websockets
 from websockets.legacy.server import WebSocketServerProtocol, WebSocketServer
 
-from src.api.core import Command, Pose, Vector3, Opcodes, AgentName
+from src.api.core import Command, Pose, Vector3, Opcodes, AgentName, Transform
 from src.api.packable_dataclass import BaseEvent
 from src.api.websocket_connection.messages import Greeting
 from src.exceptions import DataclassJsonException
@@ -102,8 +102,8 @@ if __name__ == '__main__':
     a = Server(
         host='localhost',
         port=9999,
-        cert='../../../ca/ca_cert.pem',
-        key='../../../ca/ca.pem',
+        cert='../../../sample_config/ca/ca_cert.pem',
+        key='../../../sample_config/ca/ca.pem',
         recv_callback=echo
     )
 
@@ -113,7 +113,10 @@ if __name__ == '__main__':
     p = Pose(
         velocity=Vector3(12, 3, 4),
         angular_velocity=Vector3(12, 3, 4),
-        transform=Vector3(12, 3, 4)
+        transform=Transform(
+            position=Vector3(12, 3, 4),
+            rotation=Vector3(12, 3, 4)
+        )
     )
 
     cmd = Command(

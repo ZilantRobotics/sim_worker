@@ -1,0 +1,45 @@
+// This is a file that contains examples of opcode usage
+// You can send the same opcodes via websocket with the exception
+// of include_file - this one is for files/cli only
+
+// Please consult src.api.core.AbstractSimCore for opcode arguments
+// opcodes are executed sequentially
+
+[
+  {"start_sim" : {"mode": "sitl_flight_goggles_with_flight_stack", "start_3d_sim": true}},
+  {"load_scene": {"scene_name": "MainScene"}},
+  {"spawn_agent": {
+      "agent_name": "octo_amazon",
+      "position": {
+           "transform": {
+             "position": {"x": 20, "y": 0, "z": 0},
+             "rotation": {"x": 0, "y": 0, "z": 0}
+           },
+           "velocity": {"x": 0, "y": 0, "z": 0},
+           "angular_velocity": {"x": 0, "y": 0, "z": 0}
+        }
+      }
+  },
+  {"spawn_agent": {
+      "agent_name": "octo_amazon",
+      "position": {
+           "transform": {
+             "position": {"x": 0, "y": 0, "z": 0},
+             "rotation": {"x": 0, "y": 0, "z": 0}
+           },
+           "velocity": {"x": 0, "y": 0, "z": 0},
+           "angular_velocity": {"x": 0, "y": 0, "z": 0}
+        }
+      }
+  },
+  {"remove_agent": {"agent_id": "octo_amazon"}},
+  //{"reboot_autopilot":  {}},
+  //{"configure_autopilot":{
+  //  "firmware": "../../autopilot_tools/src/autopilot_tools/utilities/downloads/px4_fmu-v5_cyphal.px4",
+  //  "sample_config": ["../../autopilot_tools/examples/config_px4.yaml"]
+  //  }},
+  {"upload_mission": {"mission": "../../autopilot_tools/examples/inno_plan.plan"}},
+  {"start_mission":  {}},
+  {"stop_sim":  {}}
+//  {"include_file": "./sample_config/some_opcodes.json"}
+]

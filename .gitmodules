@@ -1,0 +1,3 @@
+[submodule "simulator3d"]
+	path = simulator3d
+	url = https://github.com/ZilantRobotics/simulator3d

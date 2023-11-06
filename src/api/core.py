@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import auto
 from functools import partial
-from typing import Union, List, Protocol, Dict
+from typing import Union, List, Protocol, Dict, Coroutine, Any
 
 from strenum import StrEnum
 
@@ -42,11 +42,16 @@ class Vector3(BaseEvent):
 
 
 @dataclass
+class Transform(BaseEvent):
+    position: Vector3
+    rotation: Vector3
+
+
+@dataclass
 class Pose(BaseEvent):
-    transform: Vector3
+    transform: Transform
     velocity: Vector3
     angular_velocity: Vector3
-
 
 @dataclass
 class Command(BaseEvent):
@@ -58,7 +63,7 @@ class Command(BaseEvent):
 @dataclass
 class Result(BaseEvent):
     status: StatusCode
-    message: dict
+    message: dict = field(default_factory=dict)
 
 
 class AbstractSimCore(ABC):
@@ -69,43 +74,50 @@ class AbstractSimCore(ABC):
                                f"Did you forget to update it?")
 
     @abstractmethod
-    def start_sim(self, mode: ModeEnum) -> Result:
+    async def start_sim(self, mode: ModeEnum) -> Result:
         pass
 
     @abstractmethod
-    def stop_sim(self) -> Result:
+    async def stop_sim(self) -> Result:
         pass
 
     @abstractmethod
-    def load_scene(self, scene_name: str) -> Result:
+    async def load_scene(self, scene_name: str) -> Result:
         pass
 
     @abstractmethod
-    def spawn_agent(self, agent_name: str, position: Pose) -> Result:
+    async def spawn_agent(self, agent_name: str, position: Pose) -> Result:
         pass
 
     @abstractmethod
-    def remove_agent(self, agent_id: str) -> Result:
+    async def remove_agent(self, agent_id: str) -> Result:
         pass
 
     @abstractmethod
-    def configure_autopilot(self, firmware: str, config: List[str]) -> Result:
+    async def configure_autopilot(self, firmware: bytes, config: List[str]) -> Result:
         pass
 
     @abstractmethod
-    def upload_mission(self, mission: str) -> Result:
+    async def upload_mission(self, mission: str) -> Result:
         pass
 
     @abstractmethod
-    def reboot_autopilot(self) -> Result:
+    async def reboot_autopilot(self) -> Result:
         pass
 
     @abstractmethod
-    def start_mission(self) -> Result:
+    async def start_mission(self) -> Result:
         pass
 
     @abstractmethod
-    def abort_mission(self) -> Result:
+    async def abort_mission(self) -> Result:
+        pass
+
+    async def noop(self) -> None:
+        pass
+
+    @abstractmethod
+    async def cleanup(self):
         pass
 
     def __getitem__(self, item: Opcodes) -> OpcodeMethod:
@@ -124,13 +136,13 @@ class AbstractSimCore(ABC):
             Opcodes.reboot_autopilot: cls.reboot_autopilot,
             Opcodes.start_mission: cls.start_mission,
             Opcodes.abort_mission: cls.abort_mission,
-            Opcodes.noop: lambda *args, **kwargs: None
+            Opcodes.noop: cls.noop
         }
 
 
 class ModeEnum(StrEnum):
-    HITL_with_innosim = "hitl_innosim"
-    SITL_with_innosim = "sitl_innosim"
+    HITL = 'cyphal_standard_vtol'
+    SITL = 'sitl_flight_goggles_with_flight_stack'
 
 
 class SceneName(StrEnum):
@@ -154,7 +166,7 @@ class AgentName(StrEnum):
 
 
 class OpcodeMethod(Protocol):
-    def __call__(self, *args: List, **kwargs: Dict) -> Result:
+    def __call__(self, *args: List, **kwargs: Dict) -> Coroutine[Any, Any, Result]:
         pass
 
 

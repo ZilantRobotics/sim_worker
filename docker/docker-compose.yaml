@@ -1,0 +1,16 @@
+version: '3.7'
+
+services:
+  sim3d:
+    image: sim3d
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ./config:/config
+    environment:
+      - DISPLAY
+    user: "1000:1000"
+    ports:
+      - "9090:9090"

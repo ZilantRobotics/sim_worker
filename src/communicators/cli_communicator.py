@@ -3,7 +3,7 @@ from dataclasses import is_dataclass, fields, MISSING, Field
 from itertools import chain
 from typing import List, get_type_hints, Type, Dict, TypeVar, get_origin, Union
 
-from src.api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes
+from src.api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes, StatusCode
 from src.api.packable_dataclass import BaseEvent, DataDict, DataContainer
 from src.communicators.base_communicator import BaseCommunicator, DestFun
 
@@ -21,7 +21,10 @@ class CliCommunicator(BaseCommunicator):
             result += self.parse_opcodes(json.loads(opcode))
 
         for opcode in result:
-            await self.dest(opcode)
+            result = await self.dest(opcode)
+            print(result)
+            if result.status != StatusCode.ok:
+                break
 
     def parse_opcodes(self, opcode: DataDict) -> List[Command]:
         opcode_name, opcode_args = list(opcode.items())[0]
@@ -67,7 +70,7 @@ class CliCommunicator(BaseCommunicator):
 
     @staticmethod
     def _recreate_field_from_json(
-		field: Field, type_: Type[T], data: DataContainer) -> Union[T, Dict, List]:
+            field: Field, type_: Type[T], data: DataContainer) -> Union[T, Dict, List]:
         if field.default != MISSING:
             value = field.default
         elif field.default_factory != MISSING:

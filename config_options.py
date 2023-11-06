@@ -12,8 +12,11 @@ class ConfigVars(StrEnum):
     SIM_WSS_LOCAL_HOST = auto()
     SIM_WORKER_NAME = auto()
     SIM_WORKER_UUID = auto()
+    SIM_3D_SIM_LOCATION = auto()
+    SIM_HITL_SIM_LOCATION = auto()
 
 
 class Commands(StrEnum):
     WSS = 'wss'
     CLI = 'cli'
+    NEW = 'new'

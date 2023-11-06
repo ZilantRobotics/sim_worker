@@ -44,7 +44,7 @@ class Client:
                 f'wss://{self.host}:{self.port}', ssl=self.ssl_context)
 
         else:
-            self.connection = await websockets.connect( # pylint: disable=E1101
+            self.connection = await websockets.connect(  # pylint: disable=E1101
                 f'ws://{self.host}:{self.port}')
 
         await self.connection.send(
@@ -68,7 +68,8 @@ if __name__ == '__main__':
         host='localhost',
         port=9999,
         name='kek',
-        uuid='1488',
+        uuid='1788',
+        cert='../../../sample_config/ca/ca_cert.pem'
     )
 
 
