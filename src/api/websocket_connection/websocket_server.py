@@ -1,9 +1,8 @@
 import asyncio
 import json
 import ssl
-from asyncio import Task
 from dataclasses import dataclass, field
-from typing import Dict, cast, Callable, Optional, Awaitable
+from typing import Dict, cast, Optional
 
 import websockets
 from websockets.legacy.server import WebSocketServerProtocol, WebSocketServer
@@ -13,11 +12,12 @@ from src.api.packable_dataclass import BaseEvent
 from src.api.websocket_connection.messages import Greeting
 from src.exceptions import DataclassJsonException
 from src.logger import logger
+from src.utils import exec_one_task
 
 ws_logger = logger.getChild('wss_srv')
 ws_logger.propagate = False
-ws_logger.setLevel(logger.level)
-ws_logger.handlers = logger.handlers
+ws_logger.setLevel(ws_logger.level)
+ws_logger.handlers = ws_logger.handlers
 
 
 @dataclass
@@ -25,14 +25,12 @@ class Worker:
     name: str
     uuid: str
     connection: WebSocketServerProtocol
-    message_task: Task
 
 
 @dataclass
 class Server:
     host: str
     port: int
-    recv_callback: Callable[[WebSocketServerProtocol, BaseEvent], Awaitable[None]]
 
     cert: str = None
     key: str = None
@@ -43,11 +41,11 @@ class Server:
     def __post_init__(self):
         self.is_using_ssl = self.cert is not None and self.key is not None
         if self.is_using_ssl:
-            ws_logger.info("Using secure sockets")
+            logger.info("Using secure sockets")
             self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             self.ssl_context.load_cert_chain(certfile=self.cert, keyfile=self.key)
         else:
-            ws_logger.info("Using plain sockets")
+            logger.info("Using plain sockets")
 
     async def send_message(self, worker_name: str, msg: BaseEvent):
         await self.workers[worker_name].connection.send(msg.pack())
@@ -56,43 +54,45 @@ class Server:
         try:
             greeting = cast(Greeting, BaseEvent.unpack(json.loads(await websocket.recv())))
         except DataclassJsonException:
-            ws_logger.error('Malformed greeting. Terminating')
+            logger.error('Malformed greeting. Terminating')
             return
-        ws_logger.info(f'Worker {greeting.uuid}/{greeting.name} joined')
-
-        async def recv_commands():
-            while True:
-                await self.recv_callback(
-                    websocket,
-                    BaseEvent.unpack(json.loads(await websocket.recv()))
-                )
-                await asyncio.sleep(0)
+        logger.info(f'Worker {greeting.uuid}/{greeting.name} joined')
 
         self.workers[greeting.uuid] = Worker(
             name=greeting.name,
             uuid=greeting.uuid,
             connection=websocket,
-            message_task=asyncio.create_task(recv_commands())
         )
         await websocket.wait_closed()
-        worker = self.workers.pop(greeting.uuid)
-        worker.message_task.cancel()
-        ws_logger.info(f'Worker {greeting.uuid}/{greeting.name} left')
-        ws_logger.debug(f'There are {len(self.workers)} workers left')
+        _ = self.workers.pop(greeting.uuid)
+        logger.info(f'Worker {greeting.uuid}/{greeting.name} left')
+        logger.debug(f'There are {len(self.workers)} workers left')
 
     async def run(self, blocking: bool = True) -> Optional[WebSocketServer]:
         if self.is_using_ssl:
             srv = websockets.serve( # pylint: disable=E1101
                     self.connected, self.host, self.port, ssl=self.ssl_context,
-                    logger=ws_logger)
+                    logger=logger)
         else:
             srv = websockets.serve( # pylint: disable=E1101
-                    self.connected, self.host, self.port, logger=ws_logger)
+                    self.connected, self.host, self.port, logger=logger)
         if blocking:
             async with srv:
                 await asyncio.Future()
         else:
             return await srv
+
+    async def recv(self) -> Dict[str, Command]:
+
+        async def worker_aware_recv(worker: Worker) -> Dict[str, Command]:
+            return {
+                worker.name: await worker.connection.recv()
+            }
+        tasks = [
+            asyncio.create_task(worker_aware_recv(worker))
+            for worker in self.workers.values()
+        ]
+        return await exec_one_task(tasks)
 
 
 async def echo(_: WebSocketServerProtocol, data: BaseEvent) -> None:
@@ -104,7 +104,6 @@ if __name__ == '__main__':
         port=9999,
         cert='../../../sample_config/ca/ca_cert.pem',
         key='../../../sample_config/ca/ca.pem',
-        recv_callback=echo
     )
 
     async def _srv():

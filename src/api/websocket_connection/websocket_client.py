@@ -32,11 +32,11 @@ class Client:
     def __post_init__(self):
         self.is_using_ssl = self.cert is not None
         if self.is_using_ssl:
-            ws_logger.info("Using secure sockets")
+            logger.info("Using secure sockets")
             self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
             self.ssl_context.load_verify_locations(self.cert)
         else:
-            ws_logger.info("Using plain sockets")
+            logger.info("Using plain sockets")
 
     async def connect(self):
         if self.is_using_ssl:
@@ -65,11 +65,11 @@ class Client:
 
 if __name__ == '__main__':
     a = Client(
-        host='localhost',
-        port=9999,
+        host='peacefulmatrix.site',
+        port=9990,
         name='kek',
         uuid='1788',
-        cert='../../../sample_config/ca/ca_cert.pem'
+        cert='../../../config/ca/ca_cert.pem'
     )
 
 

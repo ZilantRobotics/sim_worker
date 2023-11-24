@@ -1,25 +1,28 @@
 # pylint: disable=no-member
 # because grpc
 from __future__ import annotations
+
 import asyncio
 import os.path
 import subprocess
 import tempfile
 from asyncio.subprocess import Process
+from collections import deque
+from logging import Handler, LogRecord, Logger
 from shlex import quote
 from subprocess import PIPE
 from typing import List, Type, Callable, Set, Coroutine, Any, Optional, Union
 
-from collections import deque
 import grpc
 from autopilot_tools.enums import Devices
 from autopilot_tools.px4.px_uploader import px_uploader
 from autopilot_tools.utilities.autopilot_configurator import SERIAL_PORTS
 from autopilot_tools.vehicle import Vehicle
-from src.api.core import AbstractSimCore, Result, Pose, ModeEnum, Command, StatusCode
+
+from simulator3d.API.zlrsimapi import api_pb2, api_pb2_grpc
+from src.api.core import AbstractSimCore, Result, Pose, ModeEnum, StatusCode
 from src.communicators.base_communicator import BaseCommunicator
 from src.logger import logger
-from simulator3d.API.zlrsimapi import api_pb2, api_pb2_grpc
 
 MAX_LEN = 10000
 
@@ -27,22 +30,39 @@ SIM_3D_HOST = '172.23.48.1'
 SIM_3D_PORT = 3258
 
 
+class WssLoggerHandler(Handler):
+    cb: Callable[[Result], None]
+
+    def __init__(
+            self, level: Union[str, int],
+            send_to_dest_cb: Callable[[Result], None]):
+        super().__init__(level)
+        self.cb = send_to_dest_cb
+
+    def emit(self, record: LogRecord):
+        self.cb(Result(
+            status=StatusCode.in_progress,
+            message={'logged_message': record.getMessage()}
+        ))
+
+
 def log_opcodes(
         fun: Callable[..., Coroutine[Any, Any, Result]]
         ) -> Callable[..., Coroutine[Any, Any, Result]]:
-    async def wrapper(*args, **kwargs):
-        logger.info(f'Opcode {fun.__name__} called with arguments: {args[1:]}, {kwargs}')
-        return await fun(*args, **kwargs)
+    async def wrapper(instance: SimCore, *args, **kwargs):
+        instance.ws_logger.info(f'Opcode {fun.__name__} called with arguments: {args}, {kwargs}')
+        return await fun(instance, *args, **kwargs)
     return wrapper
 
 
 def catch_errors_to_result(
         fun: Callable[..., Coroutine[Any, Any, Result]]
         ) -> Callable[..., Coroutine[Any, Any, Result]]:
-    async def wrapper(*args, **kwargs):
+    async def wrapper(instance: SimCore, *args, **kwargs):
         try:
-            return await fun(*args, **kwargs)
-        except Exception as exc: # pylint: disable=broad-exception-caught
+            return await fun(instance, *args, **kwargs)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            instance.ws_logger.warning(f'{type(exc)}: {str(exc)}')
             return Result(
                 status=StatusCode.error,
                 message={'exception': f'{type(exc)}: {str(exc)}'}
@@ -93,41 +113,34 @@ class SimCore(AbstractSimCore):
 
     sim3d_connection: api_pb2_grpc.APIStub = None
 
+    ws_logger: Logger
+
     def __init__(self, communicator: Type[BaseCommunicator],
                  sim_3d_path: str, hitl_sim_path: str, *args, **kwargs):
         self.sim_3d_path = sim_3d_path
         self.hitl_sim_path = hitl_sim_path
-        self.communicator = communicator(
-            dest=self.dispatch, *args, **kwargs)
         self.sim_3d_log = deque([], maxlen=MAX_LEN)
         self.hitl_sim_log = deque([], maxlen=MAX_LEN)
         self._monitor_tasks = set()
-        super().__init__()
+        super().__init__(communicator, *args, **kwargs)
 
-    def run(self) -> None:
+        def send_log_info(res: Result) -> None:
+            asyncio.ensure_future(
+                self.communicator.send(res), loop=asyncio.get_event_loop())
 
-        async def recv_commands():
-            async for command in self.communicator.receive():
-                await self.dispatch(command)
-
-        async def main():
-            await self.communicator.setup()
-
-            await asyncio.gather(
-                self.communicator.run(),
-                recv_commands())
-            await self.cleanup()
-
-        asyncio.run(main())
+        self.ws_logger = logger.getChild('sim_core')
+        self.ws_logger.propagate = False
+        self.ws_logger.setLevel(logger.level)
+        self.ws_logger.handlers = logger.handlers
+        self.ws_logger.handlers.append(
+            WssLoggerHandler(
+                level=self.ws_logger.level,
+                send_to_dest_cb=send_log_info
+            )
+        )
 
     async def cleanup(self):
         print(await self.stop_sim())
-
-    async def dispatch(self, cmd: Command) -> Result:
-        return await self[cmd.opcode](
-            *cmd.args,
-            **cmd.kwargs
-        )
 
     @catch_errors_to_result
     @log_opcodes
@@ -225,8 +238,8 @@ class SimCore(AbstractSimCore):
             message={'error': 'failed to kill hitl sim'}
         )
 
-    @log_opcodes
     @requires_sim3d_connection
+    @log_opcodes
     async def load_scene(self, scene_name: str) -> Result:
         if self.sim3d_connection.GetCurrentScene(
                 api_pb2.GetCurrentSceneRequest()).scene == scene_name:
@@ -238,8 +251,8 @@ class SimCore(AbstractSimCore):
             status=StatusCode.ok,
         )
 
-    @log_opcodes
     @requires_sim3d_connection
+    @log_opcodes
     async def spawn_agent(self, agent_name: str, position: Pose) -> Result:
         _ = self.sim3d_connection.GetSpawn(api_pb2.GetSpawnRequest())
         agent_uid = self.sim3d_connection.SpawnAgent(api_pb2.SpawnAgentRequest(state=api_pb2.State(
@@ -253,14 +266,13 @@ class SimCore(AbstractSimCore):
             name='Quadcopter-M690')).uid
         self.sim3d_connection.Run(api_pb2.RunRequest(timeLimit=0))
 
-
         return Result(
             status=StatusCode.ok,
             message={'uid': agent_uid}
         )
 
-    @log_opcodes
     @requires_sim3d_connection
+    @log_opcodes
     async def remove_agent(self, agent_id: str) -> Result:
         remove_agent_request = api_pb2.RemoveAgentRequest(uid=self.uid)
         remove_agent_response = self.sim3d_connection.RemoveAgent(remove_agent_request)
@@ -269,16 +281,16 @@ class SimCore(AbstractSimCore):
             message={'message': remove_agent_response}
         )
 
-    @log_opcodes
     @catch_errors_to_result
     @requires_autopilot_connection
+    @log_opcodes
     async def configure_autopilot(
-            self, firmware: Union[str, os.PathLike],
+            self, firmware: Union[str, os.PathLike, None],
             config: List[Union[str, os.PathLike]]) -> Result:
 
         if os.path.exists(firmware):
             px_uploader([firmware], SERIAL_PORTS)
-        else:
+        elif firmware is not None:
             # this should be dealt with without os.path.exists hackery
             # If user indeed specifies a path but makes a typo, the control will go here
             # And the uploader will try to parse that path as a valid content of a firmware file
@@ -307,9 +319,9 @@ class SimCore(AbstractSimCore):
             status=StatusCode.ok
         )
 
-    @log_opcodes
     @catch_errors_to_result
     @requires_autopilot_connection
+    @log_opcodes
     async def upload_mission(self, mission: Union[str, os.PathLike]) -> Result:
         if os.path.exists(mission):
             self.vehicle_instance.load_mission(mission)
@@ -321,18 +333,18 @@ class SimCore(AbstractSimCore):
             status=StatusCode.ok
         )
 
-    @log_opcodes
     @catch_errors_to_result
     @requires_autopilot_connection
+    @log_opcodes
     async def reboot_autopilot(self) -> Result:
         self.vehicle_instance.reboot()
         return Result(
             status=StatusCode.ok
         )
 
-    @log_opcodes
     @catch_errors_to_result
     @requires_autopilot_connection
+    @log_opcodes
     async def start_mission(self) -> Result:
         await asyncio.sleep(3)
         res = self.vehicle_instance.run_mission(timeout=20)
@@ -349,3 +361,80 @@ class SimCore(AbstractSimCore):
         if self.vehicle_instance is not None:
             self.vehicle_instance.master.close()
         self.vehicle_instance = None
+
+
+class DummySimCore(AbstractSimCore):
+    communicator: BaseCommunicator
+
+    def __init__(self, communicator: Type[BaseCommunicator], *args, **kwargs):
+        super().__init__(communicator, *args, **kwargs)
+        self.ws_logger = logger.getChild('sim_core')
+        self.ws_logger.propagate = False
+        self.ws_logger.setLevel(logger.level)
+        self.ws_logger.handlers = logger.handlers
+
+        def send_log_info(res: Result) -> None:
+            asyncio.ensure_future(
+                self.communicator.send(res), loop=asyncio.get_event_loop())
+
+        self.ws_logger.handlers.append(
+            WssLoggerHandler(
+                level=self.ws_logger.level,
+                send_to_dest_cb=send_log_info
+            )
+        )
+
+    async def cleanup(self):
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def start_sim(self, mode: ModeEnum, start_3d_sim: bool = True) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def stop_sim(self) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def load_scene(self, scene_name: str) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def spawn_agent(self, agent_name: str, position: Pose) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def remove_agent(self, agent_id: str) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def configure_autopilot(
+            self, firmware: Union[str, os.PathLike, None],
+            config: List[Union[str, os.PathLike]]) -> Result:
+
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def upload_mission(self, mission: Union[str, os.PathLike]) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def reboot_autopilot(self) -> Result:
+        pass
+
+    @catch_errors_to_result
+    @log_opcodes
+    async def start_mission(self) -> Result:
+        pass
+
+    @log_opcodes
+    async def abort_mission(self) -> Result:
+        pass

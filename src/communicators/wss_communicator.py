@@ -1,13 +1,13 @@
-from typing import cast, Optional, AsyncIterable
+import asyncio
+from typing import Optional
 
-from websockets.legacy.server import WebSocketServerProtocol
-
-from src.api.core import Command
+from src.api.core import Result
 from src.api.packable_dataclass import BaseEvent
 from src.api.websocket_connection.websocket_client import Client
 from src.api.websocket_connection.websocket_server import Server
-from src.communicators.base_communicator import BaseCommunicator, DestFun
+from src.communicators.base_communicator import BaseCommunicator
 from src.logger import logger
+from src.utils import exec_one_task
 
 com_logger = logger.getChild('wss_com')
 com_logger.propagate = False
@@ -16,28 +16,29 @@ com_logger.handlers = logger.handlers
 
 
 class WssCommunicator(BaseCommunicator):
+    """
+    This class serves as a connector between the sim core and WSS communication channel
+    Sim core is the actual thing that executes opcodes, like start sim, stop sim etc.
+    WSS channel allows sending Commands across the WSS channel
+
+    This communicator works as a client by default, but can also launch its own
+    server if needed e.g. for CLI connections from the local network
+    """
     wss_srv: Optional[Server]
     wss_client: Client
 
     def __init__(
-            self, dest: DestFun,
-            remote_host: str, remote_port: int,
+            self, remote_host: str, remote_port: int,
             name: str, uuid: str, cert: str,
-            local_port: int, local_host: str,
             is_local_wss_enabled: bool,
-            *args, **kwargs):
-        super().__init__(dest, *args, **kwargs)
+            *args, local_port: int = None, local_host: str = None, **kwargs):
+        super().__init__(*args, **kwargs)
 
         if is_local_wss_enabled:
             com_logger.info('Running communicator with a local server')
-
-            async def recv_fun(_: WebSocketServerProtocol, data: BaseEvent):
-                await self.dest(cast(Command, data))
-
             self.wss_srv = Server(
                 host=local_host,
                 port=local_port,
-                recv_callback=recv_fun
             )
         else:
             self.wss_srv = None
@@ -58,6 +59,21 @@ class WssCommunicator(BaseCommunicator):
         if self.wss_srv is not None:
             await self.wss_srv.run(blocking=False)
 
-    async def receive(self) -> AsyncIterable[Command]:
-        while True:
-            yield await self.wss_client.recv()
+    async def receive(self) -> BaseEvent:
+        if self.wss_srv is None:
+            while True:
+                return await self.wss_client.recv()
+        else:
+            while True:
+                tasks = [
+                    asyncio.create_task(self.wss_client.recv()),
+                    asyncio.create_task(self.wss_srv.recv())
+                ]
+                return await exec_one_task(tasks)
+
+    async def send(self, msg: Result):
+        if self.wss_client.connection is None:
+            com_logger.warning(f'A message to server sent but there is no server: {msg}')
+            return
+
+        await self.wss_client.send(msg)

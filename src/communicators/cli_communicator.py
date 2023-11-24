@@ -1,30 +1,30 @@
 import json
 from dataclasses import is_dataclass, fields, MISSING, Field
 from itertools import chain
-from typing import List, get_type_hints, Type, Dict, TypeVar, get_origin, Union
+from typing import List, get_type_hints, Type, Dict, TypeVar, get_origin, Union, AsyncIterable
 
-from src.api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes, StatusCode
+from src.api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes, Result
 from src.api.packable_dataclass import BaseEvent, DataDict, DataContainer
-from src.communicators.base_communicator import BaseCommunicator, DestFun
+from src.communicators.base_communicator import BaseCommunicator
 
 
 class CliCommunicator(BaseCommunicator):
-    opcodes: List[str]
+    opcodes_raw: List[str]
+    command_list = List[Command]
 
-    def __init__(self, dest: DestFun, opcode_list: List[str], *args, **kwargs):
-        super().__init__(dest, *args, **kwargs)
-        self.opcodes = opcode_list
+    def __init__(self, opcode_list: List[str], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.opcodes_raw = opcode_list
 
     async def setup(self):
         result = []
-        for opcode in chain(*self.opcodes):
+        for opcode in chain(*self.opcodes_raw):
             result += self.parse_opcodes(json.loads(opcode))
+        self.command_list = result
 
-        for opcode in result:
-            result = await self.dest(opcode)
-            print(result)
-            if result.status != StatusCode.ok:
-                break
+    async def receive(self) -> AsyncIterable[Command]:
+        for command in self.command_list:
+            yield command
 
     def parse_opcodes(self, opcode: DataDict) -> List[Command]:
         opcode_name, opcode_args = list(opcode.items())[0]
@@ -125,3 +125,6 @@ class CliCommunicator(BaseCommunicator):
                 res += hint
 
         return hints
+
+    async def send(self, msg: Result):
+        print(msg)

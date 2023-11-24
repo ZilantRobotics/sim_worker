@@ -23,7 +23,7 @@ class BaseEvent:
     """
     def pack(self) -> DataDict:
         res = {
-            'type': str(type(self)),
+            'type': str(type(self).__name__),
             'data': {}
         }
         BaseEvent._to_dict_recurse(res['data'], self)
@@ -47,7 +47,7 @@ class BaseEvent:
 
         if is_dataclass(type_):
             return {
-                'type': str(type_),
+                'type': str(type_.__name__),
                 'data': BaseEvent._to_dict_recurse({}, source)
             }
         if get_origin(type_) == get_origin(Dict):
@@ -97,7 +97,7 @@ class BaseEvent:
         else:
             obj = src
 
-        if obj is None:
+        if obj is None and src is not None:
             raise MalformedDataclassJson(src)
 
         return obj
@@ -113,7 +113,7 @@ class BaseEvent:
             res += subclass.__subclasses__()
 
         return {
-            str(t): t for t in res
+            str(t.__name__): t for t in res
         }
 
     T = TypeVar('T')

@@ -6,10 +6,8 @@ DestFun = Callable[[Command], Awaitable[Result]]
 
 
 class BaseCommunicator:
-    dest: DestFun
-
-    def __init__(self, dest: DestFun, *args, **kwargs): # pylint: disable=unused-argument
-        self.dest = dest
+    def __init__(self, *args, **kwargs):  # pylint: disable=unused-argument
+        pass
 
     async def setup(self):
         pass
@@ -19,3 +17,6 @@ class BaseCommunicator:
 
     async def receive(self) -> AsyncIterable[Command]:
         yield Command(opcode=Opcodes.noop)
+
+    async def send(self, msg: Result):
+        pass

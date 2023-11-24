@@ -1,15 +1,17 @@
 from __future__ import annotations
-
+import asyncio
+import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import auto
 from functools import partial
-from typing import Union, List, Protocol, Dict, Coroutine, Any
-
+from typing import Union, List, Protocol, Dict, Coroutine, Any, Type
 from strenum import StrEnum
 
-from src.api.packable_dataclass import BaseEvent
 from src.logger import logger
+from src.api.packable_dataclass import BaseEvent
+if typing.TYPE_CHECKING:
+    from src.communicators.base_communicator import BaseCommunicator
 
 
 # You can send a message with one of those opcodes
@@ -53,6 +55,7 @@ class Pose(BaseEvent):
     velocity: Vector3
     angular_velocity: Vector3
 
+
 @dataclass
 class Command(BaseEvent):
     opcode: Opcodes
@@ -67,7 +70,10 @@ class Result(BaseEvent):
 
 
 class AbstractSimCore(ABC):
-    def __init__(self):
+    communicator: BaseCommunicator
+
+    def __init__(self, communicator: Type[BaseCommunicator], *args, **kwargs):
+        self.communicator = communicator(*args, **kwargs)
         for opcode in Opcodes:
             if opcode not in self.opcode_table():
                 logger.warning(f"Opcode {opcode} not found in the opcodes table. "
@@ -120,6 +126,30 @@ class AbstractSimCore(ABC):
     async def cleanup(self):
         pass
 
+    async def dispatch(self, command: Command) -> Result:
+        return await self[command.opcode](
+            *command.args,
+            **command.kwargs
+        )
+
+    def run(self) -> None:
+
+        async def recv_commands():
+            async for command in self.communicator.receive():
+                res = await self.dispatch(command)
+                if res is not None:
+                    print(res)
+
+        async def main():
+            await self.communicator.setup()
+
+            await asyncio.gather(
+                self.communicator.run(),
+                recv_commands())
+            await self.cleanup()
+
+        asyncio.run(main())
+
     def __getitem__(self, item: Opcodes) -> OpcodeMethod:
         return partial(self.opcode_table()[item], self)
 
@@ -153,6 +183,7 @@ class SceneName(StrEnum):
 class StatusCode(StrEnum):
     ok = "ok"
     error = "error"
+    in_progress = "in_progress"
     permission_denied = "permission_denied"
 
 
