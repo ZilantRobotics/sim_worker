@@ -8,7 +8,6 @@ from functools import partial
 from typing import Union, List, Protocol, Dict, Coroutine, Any, Type
 from strenum import StrEnum
 
-from ..communicators.base_communicator import BaseCommunicator
 from .packable_dataclass import BaseEvent
 from ..logger import logger
 if typing.TYPE_CHECKING:

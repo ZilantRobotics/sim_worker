@@ -7,7 +7,7 @@ from typing import Dict, cast, Optional, Callable, Awaitable
 import websockets
 from websockets.legacy.server import WebSocketServerProtocol, WebSocketServer
 
-from ....src.utils import exec_one_task
+from ...utils import exec_one_task
 from ..core import Command, Pose, Vector3, Opcodes, AgentName, Transform
 from ..packable_dataclass import BaseEvent
 from ..websocket_connection.messages import Greeting
@@ -31,7 +31,6 @@ class Worker:
 class Server:
     host: str
     port: int
-    recv_callback: Callable[[WebSocketServerProtocol, BaseEvent], Awaitable[None]]
     join_callback: Callable[[str, str], Awaitable[None]] = None
     leave_callback: Callable[[str, str], Awaitable[None]] = None
 
@@ -63,14 +62,6 @@ class Server:
         if self.join_callback is not None:
             await self.join_callback(greeting.uuid, greeting.name)
 
-        async def recv_commands():
-            while True:
-                await self.recv_callback(
-                    websocket,
-                    BaseEvent.unpack(json.loads(await websocket.recv()))
-                )
-                await asyncio.sleep(0)
-
         self.workers[greeting.uuid] = Worker(
             name=greeting.name,
             uuid=greeting.uuid,
@@ -85,11 +76,11 @@ class Server:
 
     async def run(self, blocking: bool = True) -> Optional[WebSocketServer]:
         if self.is_using_ssl:
-            srv = websockets.serve( # pylint: disable=E1101
+            srv = websockets.serve(  # pylint: disable=E1101
                     self.connected, self.host, self.port, ssl=self.ssl_context,
                     logger=ws_logger)
         else:
-            srv = websockets.serve( # pylint: disable=E1101
+            srv = websockets.serve(  # pylint: disable=E1101
                     self.connected, self.host, self.port, logger=ws_logger)
         if blocking:
             async with srv:

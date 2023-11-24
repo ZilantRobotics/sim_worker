@@ -3,7 +3,7 @@ repos:
   hooks:
     - id: pylint
       name: pylint
-      entry: python3.8 -m pylint
+      entry: python3.8 -m pylint -d duplicate-code
       language: system
       types: [python]
       exclude: "(tests/.*)|(examples/.*)"
