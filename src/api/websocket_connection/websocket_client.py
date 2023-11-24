@@ -8,10 +8,10 @@ import websockets
 from websockets.exceptions import ConnectionClosedOK
 from websockets.legacy.client import WebSocketClientProtocol
 
-from src.api.core import Command, Opcodes
-from src.api.packable_dataclass import BaseEvent
-from src.api.websocket_connection.messages import Greeting
-from src.logger import logger
+from ..core import Command, Opcodes
+from ..packable_dataclass import BaseEvent
+from ..websocket_connection.messages import Greeting
+from ...logger import logger
 
 ws_logger = logger.getChild('wss_client')
 ws_logger.propagate = False

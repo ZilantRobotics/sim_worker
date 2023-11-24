@@ -8,10 +8,11 @@ from functools import partial
 from typing import Union, List, Protocol, Dict, Coroutine, Any, Type
 from strenum import StrEnum
 
-from src.logger import logger
-from src.api.packable_dataclass import BaseEvent
+from ..communicators.base_communicator import BaseCommunicator
+from .packable_dataclass import BaseEvent
+from ..logger import logger
 if typing.TYPE_CHECKING:
-    from src.communicators.base_communicator import BaseCommunicator
+    from ..communicators.base_communicator import BaseCommunicator
 
 
 # You can send a message with one of those opcodes
@@ -54,7 +55,6 @@ class Pose(BaseEvent):
     transform: Transform
     velocity: Vector3
     angular_velocity: Vector3
-
 
 @dataclass
 class Command(BaseEvent):
@@ -100,7 +100,7 @@ class AbstractSimCore(ABC):
         pass
 
     @abstractmethod
-    async def configure_autopilot(self, firmware: bytes, config: List[str]) -> Result:
+    async def configure_autopilot(self, firmware: str, config: List[str]) -> Result:
         pass
 
     @abstractmethod

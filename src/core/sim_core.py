@@ -18,11 +18,10 @@ from autopilot_tools.enums import Devices
 from autopilot_tools.px4.px_uploader import px_uploader
 from autopilot_tools.utilities.autopilot_configurator import SERIAL_PORTS
 from autopilot_tools.vehicle import Vehicle
-
-from simulator3d.API.zlrsimapi import api_pb2, api_pb2_grpc
-from src.api.core import AbstractSimCore, Result, Pose, ModeEnum, StatusCode
-from src.communicators.base_communicator import BaseCommunicator
-from src.logger import logger
+from ..api.core import AbstractSimCore, Result, Pose, ModeEnum, Command, StatusCode
+from ..communicators.base_communicator import BaseCommunicator
+from ..logger import logger
+from ...simulator3d.API.zlrsimapi import api_pb2, api_pb2_grpc
 
 MAX_LEN = 10000
 

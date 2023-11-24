@@ -1,6 +1,6 @@
 from typing import Callable, AsyncIterable, Awaitable
 
-from src.api.core import Command, Result, Opcodes
+from ..api.core import Command, Result, Opcodes
 
 DestFun = Callable[[Command], Awaitable[Result]]
 

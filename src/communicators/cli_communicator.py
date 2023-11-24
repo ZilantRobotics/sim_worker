@@ -3,9 +3,9 @@ from dataclasses import is_dataclass, fields, MISSING, Field
 from itertools import chain
 from typing import List, get_type_hints, Type, Dict, TypeVar, get_origin, Union, AsyncIterable
 
-from src.api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes, Result
-from src.api.packable_dataclass import BaseEvent, DataDict, DataContainer
-from src.communicators.base_communicator import BaseCommunicator
+from ..api.core import Command, AbstractSimCore, INCLUDE_FILE_OPCODE, Opcodes, StatusCode, Result
+from ..api.packable_dataclass import BaseEvent, DataDict, DataContainer
+from ..communicators.base_communicator import BaseCommunicator, DestFun
 
 
 class CliCommunicator(BaseCommunicator):

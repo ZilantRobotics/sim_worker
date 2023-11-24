@@ -2,17 +2,17 @@ import asyncio
 import json
 import ssl
 from dataclasses import dataclass, field
-from typing import Dict, cast, Optional
+from typing import Dict, cast, Optional, Callable, Awaitable
 
 import websockets
 from websockets.legacy.server import WebSocketServerProtocol, WebSocketServer
 
-from src.api.core import Command, Pose, Vector3, Opcodes, AgentName, Transform
-from src.api.packable_dataclass import BaseEvent
-from src.api.websocket_connection.messages import Greeting
-from src.exceptions import DataclassJsonException
-from src.logger import logger
-from src.utils import exec_one_task
+from ....src.utils import exec_one_task
+from ..core import Command, Pose, Vector3, Opcodes, AgentName, Transform
+from ..packable_dataclass import BaseEvent
+from ..websocket_connection.messages import Greeting
+from ...exceptions import DataclassJsonException
+from ...logger import logger
 
 ws_logger = logger.getChild('wss_srv')
 ws_logger.propagate = False
@@ -31,6 +31,9 @@ class Worker:
 class Server:
     host: str
     port: int
+    recv_callback: Callable[[WebSocketServerProtocol, BaseEvent], Awaitable[None]]
+    join_callback: Callable[[str, str], Awaitable[None]] = None
+    leave_callback: Callable[[str, str], Awaitable[None]] = None
 
     cert: str = None
     key: str = None
@@ -56,7 +59,17 @@ class Server:
         except DataclassJsonException:
             logger.error('Malformed greeting. Terminating')
             return
-        logger.info(f'Worker {greeting.uuid}/{greeting.name} joined')
+        ws_logger.info(f'Worker {greeting.uuid}/{greeting.name} joined')
+        if self.join_callback is not None:
+            await self.join_callback(greeting.uuid, greeting.name)
+
+        async def recv_commands():
+            while True:
+                await self.recv_callback(
+                    websocket,
+                    BaseEvent.unpack(json.loads(await websocket.recv()))
+                )
+                await asyncio.sleep(0)
 
         self.workers[greeting.uuid] = Worker(
             name=greeting.name,
@@ -64,18 +77,20 @@ class Server:
             connection=websocket,
         )
         await websocket.wait_closed()
+        if self.leave_callback is not None:
+            await self.leave_callback(greeting.uuid, greeting.name)
         _ = self.workers.pop(greeting.uuid)
-        logger.info(f'Worker {greeting.uuid}/{greeting.name} left')
-        logger.debug(f'There are {len(self.workers)} workers left')
+        ws_logger.info(f'Worker {greeting.uuid}/{greeting.name} left')
+        ws_logger.debug(f'There are {len(self.workers)} workers left')
 
     async def run(self, blocking: bool = True) -> Optional[WebSocketServer]:
         if self.is_using_ssl:
             srv = websockets.serve( # pylint: disable=E1101
                     self.connected, self.host, self.port, ssl=self.ssl_context,
-                    logger=logger)
+                    logger=ws_logger)
         else:
             srv = websockets.serve( # pylint: disable=E1101
-                    self.connected, self.host, self.port, logger=logger)
+                    self.connected, self.host, self.port, logger=ws_logger)
         if blocking:
             async with srv:
                 await asyncio.Future()

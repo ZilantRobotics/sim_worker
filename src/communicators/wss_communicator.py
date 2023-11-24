@@ -1,13 +1,15 @@
 import asyncio
 from typing import Optional
 
-from src.api.core import Result
-from src.api.packable_dataclass import BaseEvent
-from src.api.websocket_connection.websocket_client import Client
-from src.api.websocket_connection.websocket_server import Server
-from src.communicators.base_communicator import BaseCommunicator
-from src.logger import logger
-from src.utils import exec_one_task
+from websockets.legacy.server import WebSocketServerProtocol
+
+from ..api.core import Command, Result
+from ..api.packable_dataclass import BaseEvent
+from ..api.websocket_connection.websocket_client import Client
+from ..api.websocket_connection.websocket_server import Server
+from ..communicators.base_communicator import BaseCommunicator, DestFun
+from ..logger import logger
+from ..utils import exec_one_task
 
 com_logger = logger.getChild('wss_com')
 com_logger.propagate = False

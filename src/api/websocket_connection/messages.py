@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from src.api.packable_dataclass import BaseEvent
+from ..packable_dataclass import BaseEvent
 
 
 @dataclass

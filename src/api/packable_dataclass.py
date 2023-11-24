@@ -3,7 +3,7 @@ from dataclasses import dataclass, fields, is_dataclass
 from functools import lru_cache
 from typing import Dict, Union, get_type_hints, TypeVar, List, get_origin, Type
 
-from src.exceptions import MalformedDataclassJson, UnknownMessage
+from ..exceptions import MalformedDataclassJson, UnknownMessage
 
 SimpleTypes = Union[str, dict, int, float]
 DataDict = Dict[str, SimpleTypes]
@@ -78,6 +78,7 @@ class BaseEvent:
             if 'type' in src and 'data' in src:
                 # This is a dataclass dict
                 try:
+                    print(BaseEvent.type_table())
                     cls_ = BaseEvent.type_table()[src['type']]
                 except KeyError as exc:
                     raise UnknownMessage(src['type']) from exc
