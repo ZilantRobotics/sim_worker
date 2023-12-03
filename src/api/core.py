@@ -55,6 +55,7 @@ class Pose(BaseEvent):
     velocity: Vector3
     angular_velocity: Vector3
 
+
 @dataclass
 class Command(BaseEvent):
     opcode: Opcodes
@@ -126,10 +127,11 @@ class AbstractSimCore(ABC):
         pass
 
     async def dispatch(self, command: Command) -> Result:
-        return await self[command.opcode](
+        res = await self[command.opcode](
             *command.args,
             **command.kwargs
         )
+        return res
 
     def run(self) -> None:
 
@@ -137,7 +139,7 @@ class AbstractSimCore(ABC):
             async for command in self.communicator.receive():
                 res = await self.dispatch(command)
                 if res is not None:
-                    print(res)
+                    await self.communicator.send(res)
 
         async def main():
             await self.communicator.setup()
@@ -207,6 +209,11 @@ if __name__ == '__main__':
         transform=Vector3(12, 3, 4)
     )
 
+    r = Result(
+        status=StatusCode.ok,
+        message={'ok': 'ok'}
+    )
+
     cmd = Command(
         opcode=Opcodes.spawn_agent,
         args=[AgentName.octo_amazon, p],
@@ -214,6 +221,7 @@ if __name__ == '__main__':
     )
     print(p)
     f = cmd.pack()
+    r_p = r.pack()
     print(f)
     k = BaseEvent.unpack(f)
     print(k)

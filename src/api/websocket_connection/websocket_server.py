@@ -15,9 +15,8 @@ from ...exceptions import DataclassJsonException
 from ...logger import logger
 
 ws_logger = logger.getChild('wss_srv')
-ws_logger.propagate = False
 ws_logger.setLevel(ws_logger.level)
-ws_logger.handlers = ws_logger.handlers
+ws_logger.handlers = []
 
 
 @dataclass

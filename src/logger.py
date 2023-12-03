@@ -51,9 +51,11 @@ class CustomFormatter(logging.Formatter):
 
 
 logging.setLoggerClass(MyLogger)
-logger = MyLogger('autopilot_tools')
+root = logging.getLogger()
 
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
 ch.setFormatter(CustomFormatter())
-logger.addHandler(ch)
+root.handlers = [ch]
+logger = logging.getLogger('sim_runner')
+logger.handlers = []

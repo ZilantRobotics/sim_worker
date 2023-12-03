@@ -1,20 +1,16 @@
 import asyncio
-from typing import Optional
+from typing import Optional, AsyncIterable
 
-from websockets.legacy.server import WebSocketServerProtocol
-
-from ..api.core import Command, Result
-from ..api.packable_dataclass import BaseEvent
+from ..api.core import Result, Command
 from ..api.websocket_connection.websocket_client import Client
 from ..api.websocket_connection.websocket_server import Server
-from ..communicators.base_communicator import BaseCommunicator, DestFun
+from ..communicators.base_communicator import BaseCommunicator
 from ..logger import logger
 from ..utils import exec_one_task
 
 com_logger = logger.getChild('wss_com')
-com_logger.propagate = False
 com_logger.setLevel(logger.level)
-com_logger.handlers = logger.handlers
+com_logger.handlers = []
 
 
 class WssCommunicator(BaseCommunicator):
@@ -61,17 +57,17 @@ class WssCommunicator(BaseCommunicator):
         if self.wss_srv is not None:
             await self.wss_srv.run(blocking=False)
 
-    async def receive(self) -> BaseEvent:
+    async def receive(self) -> AsyncIterable[Command]:
         if self.wss_srv is None:
             while True:
-                return await self.wss_client.recv()
+                yield await self.wss_client.recv()
         else:
             while True:
                 tasks = [
                     asyncio.create_task(self.wss_client.recv()),
                     asyncio.create_task(self.wss_srv.recv())
                 ]
-                return await exec_one_task(tasks)
+                yield await exec_one_task(tasks)
 
     async def send(self, msg: Result):
         if self.wss_client.connection is None:

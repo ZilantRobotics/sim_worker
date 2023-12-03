@@ -14,9 +14,8 @@ from ..websocket_connection.messages import Greeting
 from ...logger import logger
 
 ws_logger = logger.getChild('wss_client')
-ws_logger.propagate = False
 ws_logger.setLevel(logger.level)
-ws_logger.handlers = logger.handlers
+ws_logger.handlers = []
 
 
 @dataclass
@@ -52,6 +51,7 @@ class Client:
         )
 
     async def send(self, cmd: BaseEvent):
+        print(str(cmd.pack()))
         await self.connection.send(
             json.dumps(cmd.pack())
         )

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import logging
 import os.path
 import subprocess
 import tempfile
@@ -12,8 +14,8 @@ from logging import Handler, LogRecord, Logger
 from shlex import quote
 from subprocess import PIPE
 from typing import List, Type, Callable, Set, Coroutine, Any, Optional, Union
-
 import grpc
+from autopilot_tools.logger import logger
 from autopilot_tools.enums import Devices
 from autopilot_tools.px4.px_uploader import px_uploader
 from autopilot_tools.utilities.autopilot_configurator import SERIAL_PORTS
@@ -38,6 +40,7 @@ class WssLoggerHandler(Handler):
         self.cb = send_to_dest_cb
 
     def emit(self, record: LogRecord):
+        print('got record')
         self.cb(Result(
             status=StatusCode.in_progress,
             message={'logged_message': record.getMessage()}
@@ -126,10 +129,7 @@ class SimCore(AbstractSimCore):
             asyncio.ensure_future(
                 self.communicator.send(res), loop=asyncio.get_event_loop())
 
-        self.ws_logger = logger.getChild('sim_core')
-        self.ws_logger.propagate = False
-        self.ws_logger.setLevel(logger.level)
-        self.ws_logger.handlers = logger.handlers
+        self.ws_logger = logging.getLogger('autopilot_tools')
         self.ws_logger.handlers.append(
             WssLoggerHandler(
                 level=self.ws_logger.level,
@@ -194,7 +194,7 @@ class SimCore(AbstractSimCore):
         await asyncio.sleep(1)
 
         if all([
-            self.sim_3d_process.returncode is None,
+            self.sim_3d_process is None or self.sim_3d_process.returncode is None,
                 self.hitl_sim_process.returncode is None]):
             return Result(
                 status=StatusCode.ok,
@@ -345,10 +345,11 @@ class SimCore(AbstractSimCore):
     @log_opcodes
     async def start_mission(self) -> Result:
         await asyncio.sleep(3)
-        res = self.vehicle_instance.run_mission(timeout=20)
+        # res = await self.vehicle_instance.arun_mission(timeout=40)
+        res = await self.vehicle_instance.arun_mission(timeout=20)
         return Result(
             status=res.status,
-            message={'result': res}
+            message={'result': dataclasses.asdict(res)}
         )
 
     @log_opcodes
@@ -367,9 +368,8 @@ class DummySimCore(AbstractSimCore):
     def __init__(self, communicator: Type[BaseCommunicator], *args, **kwargs):
         super().__init__(communicator, *args, **kwargs)
         self.ws_logger = logger.getChild('sim_core')
-        self.ws_logger.propagate = False
         self.ws_logger.setLevel(logger.level)
-        self.ws_logger.handlers = logger.handlers
+        self.ws_logger.handlers = []
 
         def send_log_info(res: Result) -> None:
             asyncio.ensure_future(

@@ -1,13 +1,16 @@
 from __future__ import annotations
 from dataclasses import dataclass, fields, is_dataclass
+from enum import Enum
 from functools import lru_cache
 from typing import Dict, Union, get_type_hints, TypeVar, List, get_origin, Type
+
+from strenum import StrEnum
 
 from ..exceptions import MalformedDataclassJson, UnknownMessage
 
 SimpleTypes = Union[str, dict, int, float]
 DataDict = Dict[str, SimpleTypes]
-DataContainer = Union[DataDict, List[SimpleTypes]]
+DataContainer = Union[DataDict, List[SimpleTypes], SimpleTypes, Enum, StrEnum]
 
 
 @dataclass
@@ -50,16 +53,18 @@ class BaseEvent:
                 'type': str(type_.__name__),
                 'data': BaseEvent._to_dict_recurse({}, source)
             }
-        if get_origin(type_) == get_origin(Dict):
+        if get_origin(type_) == get_origin(Dict) or issubclass(type_, dict):
             return {
                 k: BaseEvent._parse_field(type(v), v, None)
                 for k, v in source.items()
             }
-        if get_origin(type_) == get_origin(List):
+        if get_origin(type_) == get_origin(List) or issubclass(type_, list):
             return [
                 BaseEvent._parse_field(type(v), v, None)
                 for v in source
             ]
+        if issubclass(type_, (StrEnum, Enum)):
+            return {source.name: source.value}
         return source
 
     @classmethod
@@ -78,7 +83,6 @@ class BaseEvent:
             if 'type' in src and 'data' in src:
                 # This is a dataclass dict
                 try:
-                    print(BaseEvent.type_table())
                     cls_ = BaseEvent.type_table()[src['type']]
                 except KeyError as exc:
                     raise UnknownMessage(src['type']) from exc

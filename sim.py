@@ -15,7 +15,7 @@ from src.communicators.wss_communicator import WssCommunicator
 from src.core.sim_core import SimCore
 from src.logger import logger
 
-config = AutoConfig('sample_config')
+config = AutoConfig('config')
 
 ORDERED_ARGS = 'ordered_args'
 
