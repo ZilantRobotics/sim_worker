@@ -1,9 +1,14 @@
 # Simulator Worker
-This is a worker backend application for HITL simulator project.
-It accepts commands (opcodes) either through WSS, which is an intended
-way to communicate with the worker or through CLI, this mode can be 
-used for local testing.
 
+## Purpose
+This is a worker backend application for HITL simulator project.
+
+Worker accepts commands (aka opcodes) through WSS or CLI, and executes them on the local environment - usually,
+that will be a HITL simulator with PX4 autopilot attached to it, and a 3D simulator.
+
+It supports starting, stopping, configuring the autopilot and launching user missions.
+The intended usage is to work with the [server](https://github.com/ZilantRobotics/sim_server) and provide users with 
+a convenient web-based GUI to test their code against the real hardware. CLI mode is supported for power users and quick tests.
 ## Setup
 * Clone this repo `git clone https://github.com/Jlo6CTEP/sim_runner --recursive`
 * Clone HITL sim repo `git clone https://github.com/RaccoonlabDev/innopolis_vtol_dynamics.git --recursive`
