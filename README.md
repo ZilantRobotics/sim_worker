@@ -28,3 +28,9 @@ the GUI web application
 
 To run in WSS mode, start the app with `python3 sim.py wss`, this will use default
 configuration options from `./config/settings.ini` and `./config/.env` files
+
+## System requirements
+Python: 3.9
+OS: Ubuntu 22.04, known to not work on WSL, RPi4 (8Gb ram) and Jetson Xavier NX
+CPU: AMD FX 8300 or better
+GPU: AMD Radeon HD5800 or better
